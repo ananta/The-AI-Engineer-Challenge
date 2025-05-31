@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Caveat, Patrick_Hand } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const caveat = Caveat({ subsets: ["latin"] });
+const patrickHand = Patrick_Hand({ 
+  weight: '400',
+  subsets: ["latin"],
+  variable: '--font-patrick-hand'
+});
 
 export const metadata: Metadata = {
-  title: "AI Chat Interface",
-  description: "A modern chat interface powered by OpenAI",
+  title: "AI Notebook Chat",
+  description: "A notebook-style chat interface powered by OpenAI",
 };
 
 export default function RootLayout({
@@ -16,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={`${patrickHand.variable} ${caveat.className}`}>{children}</body>
     </html>
   );
 }
