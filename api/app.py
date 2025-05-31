@@ -6,9 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 # Import OpenAI client for interacting with OpenAI's API
 from openai import AsyncOpenAI, AuthenticationError
-import os
 from typing import Optional, AsyncGenerator
-import httpx
 
 # Initialize FastAPI application with a title
 app = FastAPI(title="OpenAI Chat API")
@@ -16,7 +14,7 @@ app = FastAPI(title="OpenAI Chat API")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://frontend-xi-six-85.vercel.app"],  # Your frontend domain
+    allow_origins=["https://frontend-xi-six-85.vercel.app", "http://localhost:3000"],  # Your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
