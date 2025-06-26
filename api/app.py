@@ -1,3 +1,4 @@
+import re
 # Import required FastAPI components for building the API
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -27,6 +28,21 @@ class ChatRequest(BaseModel):
     user_message: str      # Message from the user
     model: Optional[str] = "gpt-3.5-turbo"  # Optional model selection with default
     api_key: str          # OpenAI API key for authentication
+
+def strip_latex_math(text: str) -> str:
+    # Remove block math delimiters
+    text = re.sub(r"\\\[([\s\S]*?)\\\]", r"\1", text)
+    
+    # Remove inline math delimiters
+    text = re.sub(r"\\\((.*?)\\\)", r"\1", text)
+
+    # Convert fractions: \frac{12}{4} → 12 / 4
+    text = re.sub(r"\\frac\{([^{}]+)\}\{([^{}]+)\}", r"\1 / \2", text)
+
+    # Optional: remove any remaining LaTeX backslashes
+    text = text.replace("\\", "")
+
+    return text
 
 # Define the main chat endpoint that handles POST requests
 @app.post("/api/chat")
@@ -76,7 +92,9 @@ async def chat(request: ChatRequest):
                     # Yield each chunk of the response as it becomes available
                     async for chunk in stream:
                         if chunk.choices[0].delta.content is not None:
-                            yield chunk.choices[0].delta.content
+                            clean_text = strip_latex_math(chunk.choices[0].delta.content)
+                            yield clean_text
+
             except AuthenticationError as auth_error:
                 print(f"Authentication error: {str(auth_error)}")
                 raise HTTPException(status_code=401, detail="Invalid API key")
