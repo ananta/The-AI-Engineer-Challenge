@@ -32,6 +32,33 @@ class ChatRequest(BaseModel):
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
+
+        def build_dynamic_prompt(user_msg: str, developer_msg: str) -> tuple[str, float]:
+            """Return a system prompt based on message content or default."""
+            lower_msg = user_msg.lower()
+
+            if "summarize" in lower_msg or "summary" in lower_msg:
+                return (
+                    "You are a professional editor. Read the provided paragraph and write a concise summary in 3-4 bullet points or a single paragraph.", 0.3
+                )
+            elif "rewrite" in lower_msg and "formal" in lower_msg:
+                return (
+                    "You are a formal writing assistant. Rewrite the given content in a polished, professional tone while preserving all facts.", 0.4
+                )
+            elif "write a story" in lower_msg or "short story" in lower_msg:
+                return (
+                    "You are a creative storyteller. Write a 100–150 word imaginative story with emotion, a twist, and a satisfying ending.", 0.9
+                )
+            elif "how many packs" in lower_msg:
+                return (
+                    "You are a math tutor. Solve the word problem with step-by-step reasoning and show clear math.", 0.2
+                )
+            else:
+                # Fallback to provided system prompt or default assistant
+                return (developer_msg or "You are a helpful assistant.", 0.7)
+
+        system_prompt, temperature = build_dynamic_prompt(request.user_message, request.developer_message)
+
         async def generate() -> AsyncGenerator[str, None]:
             try:
                 # Create async OpenAI client
@@ -39,9 +66,10 @@ async def chat(request: ChatRequest):
                     stream = await client.chat.completions.create(
                         model=request.model,
                         messages=[
-                            {"role": "system", "content": request.developer_message},
+                            {"role": "system", "content": system_prompt},
                             {"role": "user", "content": request.user_message}
                         ],
+                        temperature=temperature,
                         stream=True  # Enable streaming response
                     )
                     
