@@ -53,9 +53,13 @@ async def chat(request: ChatRequest):
             """Return a system prompt based on message content or default."""
             lower_msg = user_msg.lower()
 
+            if "beginner" in lower_msg:
+                return (
+                    "You are a teacher. Explain the following concept to a 12-year-old in fewer than 150 words", 0.5
+                )
             if "summarize" in lower_msg or "summary" in lower_msg:
                 return (
-                    "You are a professional editor. Read the provided paragraph and write a concise summary in 3-4 bullet points or a single paragraph.", 0.3
+                    "You are a professional editor. Read the provided paragraph and write a concise summary in a single paragraph.", 0.3
                 )
             elif "rewrite" in lower_msg and "formal" in lower_msg:
                 return (
