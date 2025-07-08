@@ -40,13 +40,13 @@ export default function Chat({ apiKey }: ChatProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${config.apiUrl}/api/chat`, {
+      // Use the PDF chat endpoint
+      const response = await fetch(`${config.apiUrl}/api/pdf_chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          developer_message: "You are a helpful AI assistant.",
           user_message: userMessage,
           api_key: apiKey,
         }),
@@ -56,35 +56,9 @@ export default function Chat({ apiKey }: ChatProps) {
         throw new Error('Network response was not ok');
       }
 
-      const reader = response.body?.getReader();
-      let assistantMessage = '';
-      let isFirstChunk = true;
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const text = new TextDecoder().decode(value);
-          assistantMessage += text;
-          
-          if (isFirstChunk) {
-            soundManager.play('receive');
-            isFirstChunk = false;
-          }
-          
-          setMessages(prev => {
-            const newMessages = [...prev];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage?.role === 'assistant') {
-              lastMessage.content = assistantMessage;
-              return [...newMessages];
-            } else {
-              return [...newMessages, { role: 'assistant', content: assistantMessage }];
-            }
-          });
-        }
-      }
+      const data = await response.json();
+      soundManager.play('receive');
+      setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
     } catch (error) {
       console.error('Error:', error);
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, there was an error processing your request.' }]);

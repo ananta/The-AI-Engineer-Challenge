@@ -8,6 +8,18 @@ from pydantic import BaseModel
 # Import OpenAI client for interacting with OpenAI's API
 from openai import AsyncOpenAI, AuthenticationError
 from typing import Optional, AsyncGenerator
+from fastapi import UploadFile, File, Form
+import os
+from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter, TextFileLoader
+from aimakerspace.vectordatabase import VectorDatabase
+import asyncio
+from aimakerspace.openai_utils.chatmodel import ChatOpenAI
+import io
+from PyPDF2 import PdfReader
+
+# Global in-memory vector DB for demo (single user/session)
+pdf_vector_db = None
+pdf_chunks = None
 
 # Initialize FastAPI application with a title
 app = FastAPI(title="OpenAI Chat API")
@@ -116,6 +128,59 @@ async def chat(request: ChatRequest):
         if isinstance(e, AuthenticationError):
             raise HTTPException(status_code=401, detail="Invalid API key")
         raise HTTPException(status_code=500, detail=str(e))
+
+class PDFChatRequest(BaseModel):
+    user_message: str
+    api_key: str = None  # Optional, fallback to env if not provided
+    k: int = 3  # Number of chunks to retrieve
+
+@app.post('/api/pdf_chat')
+async def pdf_chat(request: PDFChatRequest):
+    global pdf_vector_db, pdf_chunks
+    if pdf_vector_db is None or pdf_chunks is None:
+        raise HTTPException(status_code=400, detail='No PDF indexed yet.')
+    # Retrieve top-k relevant chunks
+    results = pdf_vector_db.search_by_text(request.user_message, k=request.k, return_as_text=True)
+    context = '\n---\n'.join(results)
+    # Compose RAG prompt
+    prompt = f"You are an expert assistant. Use the following PDF context to answer the user's question.\n\nContext:\n{context}\n\nQuestion: {request.user_message}\n\nAnswer:"
+    chat = ChatOpenAI(api_key=request.api_key)
+    response = chat.run([
+        {"role": "system", "content": "You are a helpful assistant that answers questions about a PDF."},
+        {"role": "user", "content": prompt}
+    ], text_only=True)
+    return {"answer": response}
+
+@app.post('/api/upload_pdf')
+async def upload_pdf(file: UploadFile = File(...), api_key: str = Form(...)):
+    global pdf_vector_db, pdf_chunks
+    filename = file.filename.lower()
+    try:
+        content = await file.read()
+        if filename.endswith('.pdf'):
+            # Read PDF from bytes
+            pdf_reader = PdfReader(io.BytesIO(content))
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
+            documents = [text]
+        elif filename.endswith('.md') or filename.endswith('.txt'):
+            # Decode text file
+            documents = [content.decode('utf-8')]
+        else:
+            raise HTTPException(status_code=400, detail='Unsupported file type.')
+
+        splitter = CharacterTextSplitter()
+        chunks = splitter.split_texts(documents)
+        from aimakerspace.openai_utils.embedding import EmbeddingModel
+        embedding_model = EmbeddingModel(api_key=api_key)
+        vector_db = VectorDatabase(embedding_model=embedding_model)
+        await vector_db.abuild_from_list(chunks)
+        pdf_vector_db = vector_db
+        pdf_chunks = chunks
+        return {'status': 'success', 'message': f'{file.filename} uploaded and indexed.'}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Failed to process file: {str(e)}')
 
 # Define a health check endpoint to verify API status
 @app.get("/api/health")
